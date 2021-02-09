@@ -1,0 +1,7 @@
+[package]
+authors = ["Roman Kolesnikov <rk2001.mailbox@gmail.com>"]
+edition = "2018"
+name = "todo"
+version = "0.1.0"
+
+[dependencies]
