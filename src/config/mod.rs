@@ -1,5 +1,5 @@
 use regex::RegexSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use self::raw::{IgnoreMode, RawConfig};
 use crate::project::base_dir;
@@ -16,7 +16,7 @@ impl Config {
     pub fn default() -> Result<Self, &'static str> {
         let root = base_dir()?;
         let raw = RawConfig::merge(
-            RawConfig::from_path(Path::new("~/.config/todo.yml")),
+            RawConfig::from_path(&dirs::config_dir().unwrap().join("todo.yml")),
             RawConfig::from_path(&root.join(".todo.yml")),
         );
 
