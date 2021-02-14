@@ -1,5 +1,5 @@
 use std::fs::read_dir;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use subprocess::Exec;
 
@@ -19,20 +19,23 @@ pub fn base_dir() -> Result<PathBuf, &'static str> {
     }
 }
 
-pub fn find_files(root: &Path, filter_fn: fn(&Path) -> bool) -> Vec<PathBuf> {
-    if filter_fn(root) {
-        if root.is_dir() {
-            read_dir(root)
-                .unwrap()
-                .filter_map(|res| match res {
-                    Err(_) => None,
-                    Ok(entry) => Some(entry),
-                })
-                .flat_map(|entry| find_files(&entry.path(), filter_fn))
-                .collect()
-        } else {
-            vec![PathBuf::from(root)]
-        }
+pub fn find_files<F>(root: &PathBuf, filter_fn: &F) -> Vec<PathBuf>
+where
+    F: Fn(&PathBuf) -> bool,
+{
+    if root.is_dir() {
+        read_dir(root)
+            .unwrap()
+            .filter_map(|r| r.ok().map(|d| d.path()))
+            .filter(filter_fn)
+            .flat_map(|path| {
+                if path.is_dir() {
+                    find_files(&path, filter_fn)
+                } else {
+                    vec![path]
+                }
+            })
+            .collect()
     } else {
         vec![]
     }

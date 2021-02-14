@@ -1,15 +1,13 @@
-use crate::project::{base_dir, find_files};
+use config::Config;
+use project::find_files;
 
+mod config;
 mod project;
 
 fn main() {
-    let base_result = base_dir().unwrap();
+    let conf = Config::default().unwrap();
 
-    println!("{}", base_result.display());
-
-    let files = find_files(&base_result, |path| {
-        !path.to_string_lossy().contains("target") && !path.to_string_lossy().contains(".git")
-    });
+    let files = find_files(&conf.root, &conf.filter_fn);
     for path in files.iter() {
         println!("{}", path.display())
     }
