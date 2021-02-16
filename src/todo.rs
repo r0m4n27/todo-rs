@@ -6,14 +6,14 @@ pub struct Todo {
     pub prefix: String,
     pub keyword: String,
     pub title: String,
-    pub issue_id: Option<String>,
+    pub issue_id: Option<u32>,
     pub comments: Vec<String>,
 }
 
 impl Display for Todo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let issue_str = if let Some(ref issue) = self.issue_id {
-            format!("({})", issue)
+            format!("(#{})", issue)
         } else {
             String::new()
         };
@@ -60,7 +60,7 @@ mod tests {
             prefix: String::from(r"// "),
             keyword: String::from("TODO"),
             title: String::from("Something"),
-            issue_id: Some(String::from("#42")),
+            issue_id: Some(42),
             comments: vec![],
         };
 

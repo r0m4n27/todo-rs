@@ -1,6 +1,6 @@
 use std::io::{self, BufRead};
 
-use regex::Regex;
+use regex::{escape, Regex};
 
 use crate::todo::Todo;
 
@@ -21,7 +21,7 @@ impl<'a> TodoParser<'a> {
 
         Ok(Self {
             todo_regex: TodoParser::create_todo_regex(keywords, reported, unreported)?,
-            comment_pattern: "^({})(?P<comment>.*)$",
+            comment_pattern: "^({})(?P<comment>.+)$",
         })
     }
 
@@ -32,8 +32,8 @@ impl<'a> TodoParser<'a> {
     ) -> Result<Regex, &'static str> {
         let prefix = "(?P<prefix>.*)";
         let keyword = format!("(?P<keyword>{})", keywords.join("|"));
-        let title = "(?P<title>.*)";
-        let issue_id = r"(\((?P<issue_id>.*)\))";
+        let title = "(?P<title>.+)";
+        let issue_id = r"(\(#(?P<issue_id>\d+)\))";
 
         let todo_format = match (unreported, reported) {
             (true, true) => format!("^{}{}{}?: {}$", prefix, keyword, issue_id, title),
@@ -61,7 +61,8 @@ impl<'a> TodoParser<'a> {
 
                 last_todo = parsed;
             } else if let Some(ref mut todo) = last_todo {
-                let reg = Regex::new(&self.comment_pattern.replace("{}", &todo.prefix)).unwrap();
+                let reg =
+                    Regex::new(&self.comment_pattern.replace("{}", &escape(&todo.prefix))).unwrap();
 
                 if let Some(m) = reg.captures(&text) {
                     todo.comments
@@ -82,7 +83,9 @@ impl<'a> TodoParser<'a> {
             prefix: c.name("prefix").unwrap().as_str().to_owned(),
             keyword: c.name("keyword").unwrap().as_str().to_owned(),
             title: c.name("title").unwrap().as_str().to_owned(),
-            issue_id: c.name("issue_id").map(|s| s.as_str().to_owned()),
+            issue_id: c
+                .name("issue_id")
+                .map(|s| s.as_str().parse::<u32>().unwrap()),
             comments: vec![],
             line,
         })
@@ -193,6 +196,22 @@ mod tests {
         }
 
         #[test]
+        fn parse_comment_escape() {
+            let parser = TodoParser::new(&vec!["TODO".to_owned()], false, true).unwrap();
+            let input = Cursor::new("// TODO: Something\n// More\n// And (\\d+) more");
+            let expected = Todo {
+                line: 1,
+                prefix: "// ".to_owned(),
+                keyword: "TODO".to_owned(),
+                title: "Something".to_owned(),
+                issue_id: None,
+                comments: vec!["More".to_owned(), r"And (\d+) more".to_owned()],
+            };
+
+            assert_eq!(vec![expected], parser.parse_file(input).unwrap())
+        }
+
+        #[test]
         fn parse_issue_id() {
             let parser = TodoParser::new(&vec!["TODO".to_owned()], true, true).unwrap();
             let input = Cursor::new("// TODO(#42): Something");
@@ -201,7 +220,7 @@ mod tests {
                 prefix: "// ".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
-                issue_id: Some("#42".to_owned()),
+                issue_id: Some(42),
                 comments: vec![],
             };
 
