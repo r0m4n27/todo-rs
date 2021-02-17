@@ -1,29 +1,44 @@
-use std::{fs::File, io::BufReader};
-
+use actions::{list_todos, todo_files};
+use clap::ArgMatches;
+use cli::create_cli;
 use config::Config;
-use project::find_files;
-use todo_parser::TodoParser;
 
+mod actions;
+mod cli;
 mod config;
 mod project;
 mod todo;
 mod todo_parser;
 
+extern crate clap;
+
 fn main() {
+    let cli_matches = create_cli();
     let conf = Config::default().unwrap();
 
-    let files = find_files(&conf.root, &conf.filter_fn);
-    let parser = TodoParser::new(&conf.keywords, true, true).unwrap();
-
-    for path in files.iter() {
-        let relative = path.strip_prefix(&conf.root).unwrap();
-        let file = File::open(path).unwrap();
-        let buf = BufReader::new(file);
-
-        if let Ok(todos) = parser.parse_file(buf) {
-            for todo in todos {
-                println!("{}:{}", relative.display(), todo)
-            }
-        }
+    match cli_matches.subcommand() {
+        ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches),
+        ("files", _) => todo_files(&conf),
+        _ => {}
     }
+}
+
+fn handle_list_todos(conf: &Config, matches: &ArgMatches) {
+    let mut unreported = false;
+    let mut reported = false;
+
+    if matches.is_present("reported") {
+        reported = true
+    }
+
+    if matches.is_present("unreported") {
+        unreported = true
+    }
+
+    if !unreported && !reported {
+        reported = true;
+        unreported = true
+    }
+
+    list_todos(conf, reported, unreported)
 }

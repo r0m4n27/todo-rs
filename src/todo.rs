@@ -29,7 +29,7 @@ impl Display for Todo {
 
         write!(
             f,
-            "{}: {}{}: {}{}",
+            "{}: {}{}: {}{}\n",
             self.line, self.keyword, issue_str, self.title, comments_str
         )
     }
@@ -50,7 +50,7 @@ mod tests {
             comments: vec![],
         };
 
-        assert_eq!("10: TODO: Something", format!("{}", todo))
+        assert_eq!("10: TODO: Something\n", format!("{}", todo))
     }
 
     #[test]
@@ -64,7 +64,7 @@ mod tests {
             comments: vec![],
         };
 
-        assert_eq!("10: TODO(#42): Something", format!("{}", todo))
+        assert_eq!("10: TODO(#42): Something\n", format!("{}", todo))
     }
 
     #[test]
@@ -79,7 +79,7 @@ mod tests {
         };
 
         assert_eq!(
-            "10: TODO: Something\n  More\n  And More",
+            "10: TODO: Something\n  More\n  And More\n",
             format!("{}", todo)
         )
     }
