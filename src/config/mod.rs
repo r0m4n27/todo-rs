@@ -2,18 +2,20 @@ use regex::RegexSet;
 use std::path::PathBuf;
 
 use self::raw::{IgnoreMode, RawConfig};
+use crate::api::Api;
 use crate::project::base_dir;
 
 mod raw;
 
-pub struct Config {
+pub struct Config<'a> {
     pub keywords: Vec<String>,
     pub root: PathBuf,
     pub filter_fn: Box<dyn Fn(&PathBuf) -> bool>,
+    pub api: &'a dyn Api,
 }
 
-impl Config {
-    pub fn default() -> Result<Self, &'static str> {
+impl<'a> Config<'a> {
+    pub fn default(dummy_api: &'a impl Api) -> Result<Self, &'static str> {
         let root = base_dir()?;
         let raw = RawConfig::merge(
             RawConfig::from_path(&dirs::config_dir().unwrap().join("todo.yml")),
@@ -25,6 +27,7 @@ impl Config {
                 keywords: raw.keywords.unwrap(),
                 root,
                 filter_fn: create_filter_fn(raw.ignore_mode.unwrap(), patterns),
+                api: dummy_api,
             })
         } else {
             Err("Can't compile patterns!")
