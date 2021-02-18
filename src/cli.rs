@@ -12,6 +12,9 @@ pub fn create_cli() -> ArgMatches<'static> {
             (@arg reported: -r --reported "Reported todos")
             (@arg unreported: -u --unreported "Unreported todos")
         )
+        (@subcommand report =>
+            (about: "Reports all new TODOs")
+        )
     )
     .get_matches()
 }

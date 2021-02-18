@@ -1,13 +1,12 @@
 use crate::todo::Todo;
 
 pub trait Api {
-    fn next_issue_id(&self) -> u32;
-
     fn closed_ids(&self) -> Vec<u32>;
 
-    fn report_todo(&self, todo: &Todo);
+    /// Reports the todo and gives it an issue_id
+    fn report_todo(&self, todo: &mut Todo);
 
-    fn report_todos(&self, todos: &Vec<Todo>) {
+    fn report_todos(&self, todos: &mut [Todo]) {
         for todo in todos {
             self.report_todo(todo)
         }

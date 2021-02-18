@@ -1,4 +1,4 @@
-use actions::{list_todos, todo_files};
+use actions::{list_todos, report_todos, todo_files};
 use api::Api;
 use clap::ArgMatches;
 use cli::create_cli;
@@ -17,15 +17,12 @@ extern crate clap;
 pub struct DummyApi {}
 
 impl Api for DummyApi {
-    fn next_issue_id(&self) -> u32 {
-        10
-    }
-
     fn closed_ids(&self) -> Vec<u32> {
         vec![1, 2, 3, 4]
     }
 
-    fn report_todo(&self, todo: &todo::Todo) {
+    fn report_todo(&self, todo: &mut todo::Todo) {
+        todo.issue_id = Some(30);
         println!("Reporting: {}", todo)
     }
 }
@@ -39,6 +36,7 @@ fn main() {
     match cli_matches.subcommand() {
         ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches),
         ("files", _) => todo_files(&conf),
+        ("report", _) => report_todos(&conf),
         _ => {}
     }
 }
