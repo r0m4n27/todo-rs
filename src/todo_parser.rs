@@ -40,6 +40,7 @@ pub fn find_todos(keywords: &[String], input: &str) -> Vec<Todo> {
     output
 }
 
+// Config guarantees that keywords won't be empty
 fn todo_regex(keywords: &[String]) -> Regex {
     let prefix = "(?P<prefix>.*)";
     let keyword = format!("(?P<keyword>{})", keywords.join("|"));
@@ -81,19 +82,20 @@ pub fn mark_todos<'a>(input: &'a str, todos: &[Todo]) -> Cow<'a, str> {
         })
         .collect();
 
-    let regex = build_regex(&filtered_todos);
-
-    regex.replace_all(input, |cap: &Captures| {
-        map.get(cap.get(0).unwrap().as_str()).unwrap()
-    })
+    if let Some(regex) = build_regex(&filtered_todos) {
+        regex.replace_all(input, |cap: &Captures| {
+            map.get(cap.get(0).unwrap().as_str()).unwrap()
+        })
+    } else {
+        Cow::from(input)
+    }
 }
 
-fn build_regex(todos: &[String]) -> Regex {
+fn build_regex(todos: &[String]) -> Option<Regex> {
     if todos.len() == 0 {
-        // Return Regex that will never match
-        Regex::new("$^").unwrap()
+        None
     } else {
-        Regex::new(&format!("(?m){}", todos.join("|"))).unwrap()
+        Some(Regex::new(&format!("(?m){}", todos.join("|"))).unwrap())
     }
 }
 
@@ -103,9 +105,11 @@ pub fn remove_todos<'a>(input: &'a str, todos: &[Todo]) -> Cow<'a, str> {
         .filter_map(|t| t.reported_pattern())
         .collect();
 
-    let regex = build_regex(&filtered_todos);
-
-    regex.replace_all(input, "")
+    if let Some(regex) = build_regex(&filtered_todos) {
+        regex.replace_all(input, "")
+    } else {
+        Cow::from(input)
+    }
 }
 
 #[cfg(test)]
@@ -218,17 +222,14 @@ mod tests {
 
         #[test]
         fn build_empty() {
-            let regex = build_regex(&Vec::new());
-            assert_eq!("$^", regex.as_str());
-
-            assert_eq!(false, regex.is_match("456\n123"))
+            assert_eq!(true, build_regex(&Vec::new()).is_none())
         }
 
         #[test]
         fn build_with_todos() {
             let regex = build_regex(&vec!["123".to_owned(), "456".to_owned(), "789".to_owned()]);
 
-            assert_eq!("(?m)123|456|789", regex.as_str())
+            assert_eq!("(?m)123|456|789", regex.unwrap().as_str())
         }
     }
 

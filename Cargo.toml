@@ -11,3 +11,4 @@ regex = "1"
 serde = {version = "1.0", features = ["derive"]}
 serde_yaml = "0.8"
 subprocess = "0.2.6"
+thiserror = "1.0"

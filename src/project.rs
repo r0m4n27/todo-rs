@@ -2,8 +2,17 @@ use std::fs::read_dir;
 use std::path::PathBuf;
 
 use subprocess::Exec;
+use thiserror::Error;
 
-pub fn base_dir() -> Result<PathBuf, &'static str> {
+#[derive(Debug, Error)]
+pub enum ProjectError {
+    #[error("Not in git repository!")]
+    NotInRepo,
+    #[error("Cant find git on the system")]
+    GitNotFound,
+}
+
+pub fn base_dir() -> Result<PathBuf, ProjectError> {
     let command = Exec::cmd("git").arg("rev-parse").arg("--show-toplevel");
 
     match command.capture() {
@@ -11,33 +20,38 @@ pub fn base_dir() -> Result<PathBuf, &'static str> {
             if data.exit_status.success() {
                 Ok(PathBuf::from(data.stdout_str().trim()))
             } else {
-                Err("Not in git repository!")
+                Err(ProjectError::NotInRepo)
             }
         }
 
-        Err(_) => Err("Cant find git on the system"),
+        Err(_) => Err(ProjectError::GitNotFound),
     }
 }
 
-pub fn find_files<F>(root: &PathBuf, filter_fn: &F) -> Vec<PathBuf>
+pub fn find_files<F>(root: &PathBuf, filter_fn: &F) -> Option<Vec<PathBuf>>
 where
     F: Fn(&PathBuf) -> bool,
 {
     if root.is_dir() {
-        read_dir(root)
+        let paths: Vec<_> = read_dir(root)
             .unwrap()
             .filter_map(|r| r.ok().map(|d| d.path()))
             .filter(filter_fn)
-            .flat_map(|path| {
-                if path.is_dir() {
-                    find_files(&path, filter_fn)
-                } else {
-                    vec![path]
-                }
-            })
-            .collect()
+            .collect();
+
+        let mut output = Vec::new();
+
+        for path in paths {
+            if path.is_dir() {
+                output.append(&mut find_files(&path, filter_fn).unwrap())
+            } else {
+                output.push(path)
+            }
+        }
+
+        Some(output)
     } else {
-        vec![]
+        None
     }
 }
 

@@ -1,8 +1,13 @@
+use std::io;
+
+use thiserror::Error;
+
 use actions::{list_todos, purge_todos, report_todos, todo_files};
 use api::Api;
 use clap::ArgMatches;
 use cli::create_cli;
-use config::Config;
+use config::{Config, ConfigError};
+use project::{base_dir, ProjectError};
 
 mod actions;
 mod api;
@@ -27,22 +32,40 @@ impl Api for DummyApi {
     }
 }
 
-fn main() {
+#[derive(Debug, Error)]
+pub enum TodoError {
+    #[error(transparent)]
+    Io(#[from] io::Error),
+
+    #[error(transparent)]
+    Project(#[from] ProjectError),
+
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+}
+
+type Result<T> = std::result::Result<T, TodoError>;
+
+fn main() -> Result<()> {
     let dummy = DummyApi {};
 
     let cli_matches = create_cli();
-    let conf = Config::default(&dummy).unwrap();
+    let root = base_dir()?;
+
+    let conf = Config::default(root, &dummy)?;
 
     match cli_matches.subcommand() {
-        ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches),
+        ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches)?,
         ("files", _) => todo_files(&conf),
-        ("report", _) => report_todos(&conf),
-        ("purge", _) => purge_todos(&conf),
+        ("report", _) => report_todos(&conf)?,
+        ("purge", _) => purge_todos(&conf)?,
         _ => {}
     }
+
+    Ok(())
 }
 
-fn handle_list_todos(conf: &Config, matches: &ArgMatches) {
+fn handle_list_todos(conf: &Config, matches: &ArgMatches) -> Result<()> {
     let mut unreported = false;
     let mut reported = false;
 

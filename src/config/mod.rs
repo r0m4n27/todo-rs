@@ -1,11 +1,18 @@
 use regex::RegexSet;
 use std::path::PathBuf;
 
+use thiserror::Error;
+
 use self::raw::{IgnoreMode, RawConfig};
 use crate::api::Api;
-use crate::project::base_dir;
 
 mod raw;
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("Can't compile Paterns!")]
+    Pattern,
+}
 
 pub struct Config<'a> {
     pub keywords: Vec<String>,
@@ -15,8 +22,7 @@ pub struct Config<'a> {
 }
 
 impl<'a> Config<'a> {
-    pub fn default(dummy_api: &'a impl Api) -> Result<Self, &'static str> {
-        let root = base_dir()?;
+    pub fn default(root: PathBuf, dummy_api: &'a impl Api) -> Result<Self, ConfigError> {
         let raw = RawConfig::merge(
             RawConfig::from_path(&dirs::config_dir().unwrap().join("todo.yml")),
             RawConfig::from_path(&root.join(".todo.yml")),
@@ -30,7 +36,7 @@ impl<'a> Config<'a> {
                 api: dummy_api,
             })
         } else {
-            Err("Can't compile patterns!")
+            Err(ConfigError::Pattern)
         }
     }
 }
