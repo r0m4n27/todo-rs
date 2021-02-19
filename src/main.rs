@@ -1,4 +1,4 @@
-use actions::{list_todos, report_todos, todo_files};
+use actions::{list_todos, purge_todos, report_todos, todo_files};
 use api::Api;
 use clap::ArgMatches;
 use cli::create_cli;
@@ -37,6 +37,7 @@ fn main() {
         ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches),
         ("files", _) => todo_files(&conf),
         ("report", _) => report_todos(&conf),
+        ("purge", _) => purge_todos(&conf),
         _ => {}
     }
 }

@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use regex::escape;
+
 #[derive(Debug, PartialEq)]
 pub struct Todo {
     pub line: u32,
@@ -41,8 +43,30 @@ impl Todo {
             .map(|i| format!("{}{}(#{}): {}", self.prefix, self.keyword, i, self.title))
     }
 
-    pub fn unreported_view(&self) -> String {
-        format!("{}{}: {}", self.prefix, self.keyword, self.title)
+    pub fn unreported_pattern(&self) -> String {
+        escape(&format!("{}{}: {}", self.prefix, self.keyword, self.title))
+    }
+
+    pub fn reported_pattern(&self) -> Option<String> {
+        self.reported_view().map(|v| {
+            if self.comments.len() == 0 {
+                format!("{}(\r\n|\n)?", escape(&v))
+            } else {
+                let comments = self
+                    .comments
+                    .iter()
+                    .map(|c| {
+                        let mut with_pref = self.prefix.clone();
+                        with_pref.push_str(c);
+
+                        escape(&with_pref)
+                    })
+                    .collect::<Vec<_>>()
+                    .join("(\r\n|\n)");
+
+                format!("{}(\r\n|\n){}(\r\n|\n)?", escape(&v), comments)
+            }
+        })
     }
 }
 
@@ -137,6 +161,43 @@ mod tests {
             comments: vec!["More".to_owned(), "And More".to_owned()],
         };
 
-        assert_eq!("// TODO: Something".to_owned(), todo.unreported_view())
+        assert_eq!("// TODO: Something".to_owned(), todo.unreported_pattern())
+    }
+
+    #[test]
+    fn reported_with_comments() {
+        let todo = Todo {
+            line: 10,
+            prefix: String::from("// "),
+            keyword: String::from("TODO"),
+            title: String::from("Something"),
+            issue_id: Some(123),
+            comments: vec!["More".to_owned(), "And More".to_owned()],
+        };
+
+        assert_eq!(
+            Some(
+                "// TODO\\(\\#123\\): Something(\r\n|\n)// More(\r\n|\n)// And More(\r\n|\n)?"
+                    .to_owned()
+            ),
+            todo.reported_pattern()
+        )
+    }
+
+    #[test]
+    fn reported_with_comments_com_empty() {
+        let todo = Todo {
+            line: 10,
+            prefix: String::from("// "),
+            keyword: String::from("TODO"),
+            title: String::from("Something"),
+            issue_id: Some(123),
+            comments: vec![],
+        };
+
+        assert_eq!(
+            Some("// TODO\\(\\#123\\): Something(\r\n|\n)?".to_owned()),
+            todo.reported_pattern()
+        )
     }
 }

@@ -1,7 +1,7 @@
 use std::fs::{self, read_to_string};
 
 use crate::project::{add_to_git, find_files};
-use crate::todo_parser::find_todos;
+use crate::todo_parser::{find_todos, remove_todos};
 use crate::{config::Config, todo_parser::mark_todos};
 
 pub fn todo_files(conf: &Config) {
@@ -51,6 +51,31 @@ pub fn report_todos(conf: &Config) {
         conf.api.report_todos(&mut todos);
 
         let out = mark_todos(&input, &todos);
+
+        fs::write(path, out.as_bytes()).unwrap()
+    }
+
+    add_to_git()
+}
+
+pub fn purge_todos(conf: &Config) {
+    let files = find_files(&conf.root, &conf.filter_fn);
+    let closed = conf.api.closed_ids();
+
+    for path in &files {
+        let input = read_to_string(path).unwrap();
+        let todos: Vec<_> = find_todos(&conf.keywords, &input)
+            .into_iter()
+            .filter(|t| {
+                if let Some(issue) = t.issue_id {
+                    closed.contains(&issue)
+                } else {
+                    false
+                }
+            })
+            .collect();
+
+        let out = remove_todos(&input, &todos);
 
         fs::write(path, out.as_bytes()).unwrap()
     }

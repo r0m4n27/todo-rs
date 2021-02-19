@@ -42,5 +42,5 @@ where
 }
 
 pub fn add_to_git() {
-    let _ = Exec::shell("git add -a");
+    let _ = Exec::shell("git add -A").join();
 }

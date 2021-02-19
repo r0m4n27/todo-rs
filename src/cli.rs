@@ -15,6 +15,9 @@ pub fn create_cli() -> ArgMatches<'static> {
         (@subcommand report =>
             (about: "Reports all new TODOs")
         )
+        (@subcommand purge =>
+            (about: "Purges all closed TODOs")
+        )
     )
     .get_matches()
 }

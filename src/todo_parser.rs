@@ -65,32 +65,47 @@ fn parse_line(regex: &Regex, text: &str) -> Option<Todo> {
 }
 
 pub fn mark_todos<'a>(input: &'a str, todos: &[Todo]) -> Cow<'a, str> {
-    let regex = build_regex(todos);
     let mut map = HashMap::new();
-    for todo in todos {
-        if let Some(reported) = todo.reported_view() {
-            map.insert(todo.unreported_view(), reported);
-        }
-    }
+    let filtered_todos: Vec<_> = todos
+        .into_iter()
+        .filter_map(|t| {
+            if let Some(reported) = t.reported_view() {
+                let unreported = t.unreported_pattern();
+
+                map.insert(unreported.clone(), reported);
+
+                Some(unreported)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let regex = build_regex(&filtered_todos);
 
     regex.replace_all(input, |cap: &Captures| {
-        map.get(cap.get(1).unwrap().as_str()).unwrap()
+        map.get(cap.get(0).unwrap().as_str()).unwrap()
     })
 }
 
-fn build_regex(todos: &[Todo]) -> Regex {
+fn build_regex(todos: &[String]) -> Regex {
     if todos.len() == 0 {
         // Return Regex that will never match
-        return Regex::new("$^").unwrap();
+        Regex::new("$^").unwrap()
+    } else {
+        Regex::new(&format!("(?m){}", todos.join("|"))).unwrap()
     }
+}
 
-    let formatted: Vec<_> = todos
-        .iter()
-        .filter(|t| t.issue_id.is_some())
-        .map(|todo| escape(&todo.unreported_view()))
+pub fn remove_todos<'a>(input: &'a str, todos: &[Todo]) -> Cow<'a, str> {
+    let filtered_todos: Vec<_> = todos
+        .into_iter()
+        .filter_map(|t| t.reported_pattern())
         .collect();
 
-    Regex::new(&format!("({})", formatted.join("|"))).unwrap()
+    let regex = build_regex(&filtered_todos);
+
+    regex.replace_all(input, "")
 }
 
 #[cfg(test)]
@@ -211,27 +226,9 @@ mod tests {
 
         #[test]
         fn build_with_todos() {
-            let todo_one = Todo {
-                line: 1,
-                prefix: "// ".to_owned(),
-                keyword: "TODO".to_owned(),
-                title: "Something".to_owned(),
-                issue_id: Some(123),
-                comments: vec!["More".to_owned()],
-            };
+            let regex = build_regex(&vec!["123".to_owned(), "456".to_owned(), "789".to_owned()]);
 
-            let todo_two = Todo {
-                line: 3,
-                prefix: "// ".to_owned(),
-                keyword: "TODO".to_owned(),
-                title: "Other".to_owned(),
-                issue_id: Some(456),
-                comments: vec!["comment".to_owned()],
-            };
-
-            let regex = build_regex(&vec![todo_one, todo_two]);
-
-            assert_eq!("(// TODO: Something|// TODO: Other)", regex.as_str())
+            assert_eq!("(?m)123|456|789", regex.as_str())
         }
     }
 
@@ -281,6 +278,56 @@ mod tests {
             assert_eq!(
                 "// TODO(#123): Something\n\nSomething Else\n// TODO(#456): Other".to_owned(),
                 mark_todos(input, &vec![todo_one, todo_two])
+            )
+        }
+    }
+
+    mod remove_todos {
+        use super::*;
+
+        #[test]
+        fn remove_simple() {
+            let input = "// TODO(#42): Something\n\nSomething Else";
+            let expected = Todo {
+                line: 1,
+                prefix: "// ".to_owned(),
+                keyword: "TODO".to_owned(),
+                title: "Something".to_owned(),
+                issue_id: Some(42),
+                comments: vec![],
+            };
+
+            assert_eq!(
+                "\nSomething Else".to_owned(),
+                remove_todos(input, &vec![expected])
+            )
+        }
+
+        #[test]
+        fn remove_mutiple() {
+            let input = "// TODO(#123): Something\n// More\nSomething Else\n// TODO(#456): Other";
+
+            let todo_one = Todo {
+                line: 1,
+                prefix: "// ".to_owned(),
+                keyword: "TODO".to_owned(),
+                title: "Something".to_owned(),
+                issue_id: Some(123),
+                comments: vec!["More".to_owned()],
+            };
+
+            let todo_two = Todo {
+                line: 3,
+                prefix: "// ".to_owned(),
+                keyword: "TODO".to_owned(),
+                title: "Other".to_owned(),
+                issue_id: Some(456),
+                comments: vec![],
+            };
+
+            assert_eq!(
+                "Something Else\n".to_owned(),
+                remove_todos(input, &vec![todo_one, todo_two])
             )
         }
     }
