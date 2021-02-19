@@ -1,3 +1,4 @@
+use gitea::GiteaError;
 use thiserror::Error;
 
 use crate::todo::Todo;
@@ -7,7 +8,7 @@ pub mod gitea;
 #[derive(Debug, Error)]
 pub enum ApiError {
     #[error(transparent)]
-    Request(#[from] reqwest::Error),
+    Gitea(#[from] GiteaError),
 }
 
 pub trait Api {
