@@ -53,7 +53,7 @@ pub fn report_todos(conf: &Config) -> Result<()> {
             .filter(|t| t.issue_id.is_none())
             .collect();
 
-        conf.api.report_todos(&mut todos);
+        conf.api.report_todos(&mut todos)?;
 
         let out = mark_todos(&input, &todos);
 
@@ -66,7 +66,7 @@ pub fn report_todos(conf: &Config) -> Result<()> {
 
 pub fn purge_todos(conf: &Config) -> Result<()> {
     let files = find_files(&conf.root, &conf.filter_fn).unwrap();
-    let closed = conf.api.closed_ids();
+    let closed = conf.api.closed_ids()?;
 
     for path in &files {
         let input = read_to_string(path)?;

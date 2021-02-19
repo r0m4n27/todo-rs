@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use actions::{list_todos, purge_todos, report_todos, todo_files};
 use api::Api;
+use api::{gitea::Gitea, ApiError};
 use clap::ArgMatches;
 use cli::create_cli;
 use config::{Config, ConfigError};
@@ -22,13 +23,14 @@ extern crate clap;
 pub struct DummyApi {}
 
 impl Api for DummyApi {
-    fn closed_ids(&self) -> Vec<u32> {
-        vec![1, 2, 3, 4]
+    fn closed_ids(&self) -> std::result::Result<Vec<u32>, ApiError> {
+        Ok(vec![1, 2, 3, 4])
     }
 
-    fn report_todo(&self, todo: &mut todo::Todo) {
+    fn report_todo(&self, todo: &mut todo::Todo) -> std::result::Result<(), ApiError> {
         todo.issue_id = Some(30);
-        println!("Reporting: {}", todo)
+        println!("Reporting: {}", todo);
+        Ok(())
     }
 }
 
@@ -42,6 +44,9 @@ pub enum TodoError {
 
     #[error(transparent)]
     Config(#[from] ConfigError),
+
+    #[error(transparent)]
+    Api(#[from] ApiError),
 }
 
 type Result<T> = std::result::Result<T, TodoError>;
