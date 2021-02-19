@@ -40,11 +40,11 @@ impl Display for Todo {
 impl Todo {
     pub fn reported_view(&self) -> Option<String> {
         self.issue_id
-            .map(|i| format!("{}{}(#{}): {}", self.prefix, self.keyword, i, self.title))
+            .map(|i| format!("{} {}(#{}): {}", self.prefix, self.keyword, i, self.title))
     }
 
     pub fn unreported_pattern(&self) -> String {
-        escape(&format!("{}{}: {}", self.prefix, self.keyword, self.title))
+        escape(&format!("{} {}: {}", self.prefix, self.keyword, self.title))
     }
 
     pub fn reported_pattern(&self) -> Option<String> {
@@ -57,6 +57,7 @@ impl Todo {
                     .iter()
                     .map(|c| {
                         let mut with_pref = self.prefix.clone();
+                        with_pref.push_str(" ");
                         with_pref.push_str(c);
 
                         escape(&with_pref)
@@ -78,7 +79,7 @@ mod tests {
     fn display_without_issue_and_comments() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: None,
@@ -92,7 +93,7 @@ mod tests {
     fn display_with_issue() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: Some(42),
@@ -106,7 +107,7 @@ mod tests {
     fn display_with_comments() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: None,
@@ -123,7 +124,7 @@ mod tests {
     fn reported_view_none() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: None,
@@ -137,7 +138,7 @@ mod tests {
     fn reported_view_some() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: Some(123),
@@ -154,7 +155,7 @@ mod tests {
     fn unreported_view() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: Some(123),
@@ -168,7 +169,7 @@ mod tests {
     fn reported_with_comments() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: Some(123),
@@ -188,7 +189,7 @@ mod tests {
     fn reported_with_comments_com_empty() {
         let todo = Todo {
             line: 10,
-            prefix: String::from("// "),
+            prefix: String::from("//"),
             keyword: String::from("TODO"),
             title: String::from("Something"),
             issue_id: Some(123),

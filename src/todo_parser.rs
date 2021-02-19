@@ -4,7 +4,7 @@ use regex::{escape, Captures, Regex};
 
 use crate::todo::Todo;
 
-const COMMENT_PATTERN: &str = "^({})(?P<comment>.+)$";
+const COMMENT_PATTERN: &str = "^({}) (?P<comment>.*)$|^({})$";
 
 // Memory usage is probably high on big files
 // As the will be completly loaded into ram
@@ -27,8 +27,12 @@ pub fn find_todos(keywords: &[String], input: &str) -> Vec<Todo> {
             let reg = Regex::new(&COMMENT_PATTERN.replace("{}", &escape(&todo.prefix))).unwrap();
 
             if let Some(m) = reg.captures(&text) {
-                todo.comments
-                    .push(m.name("comment").unwrap().as_str().to_owned())
+                todo.comments.push(
+                    m.name("comment")
+                        .map(|m| m.as_str())
+                        .unwrap_or("")
+                        .to_owned(),
+                )
             }
         }
     }
@@ -47,7 +51,7 @@ fn todo_regex(keywords: &[String]) -> Regex {
     let title = "(?P<title>.+)";
     let issue_id = r"(\(#(?P<issue_id>\d+)\))";
 
-    Regex::new(&format!("^{}{}{}?: {}$", prefix, keyword, issue_id, title)).unwrap()
+    Regex::new(&format!("^{} {}{}?: {}$", prefix, keyword, issue_id, title)).unwrap()
 }
 
 fn parse_line(regex: &Regex, text: &str) -> Option<Todo> {
@@ -84,7 +88,10 @@ pub fn mark_todos<'a>(input: &'a str, todos: &[Todo]) -> Cow<'a, str> {
 
     if let Some(regex) = build_regex(&filtered_todos) {
         regex.replace_all(input, |cap: &Captures| {
-            map.get(cap.get(0).unwrap().as_str()).unwrap()
+            // Has to be escaped because the key is also escaped
+            let key = escape(cap.get(0).unwrap().as_str());
+
+            map.get(&key).unwrap()
         })
     } else {
         Cow::from(input)
@@ -134,7 +141,7 @@ mod tests {
             let input = "// TODO: Something";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: None,
@@ -149,7 +156,7 @@ mod tests {
             let input = "// TODO: Something\n// More\n// And more";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: None,
@@ -160,11 +167,26 @@ mod tests {
         }
 
         #[test]
+        fn parse_comments_empty_line() {
+            let input = "// TODO: Something\n// More\n// And more\n//";
+            let expected = Todo {
+                line: 1,
+                prefix: "//".to_owned(),
+                keyword: "TODO".to_owned(),
+                title: "Something".to_owned(),
+                issue_id: None,
+                comments: vec!["More".to_owned(), "And more".to_owned(), "".to_owned()],
+            };
+
+            assert_eq!(vec![expected], find_todos(&vec!["TODO".to_owned()], input))
+        }
+
+        #[test]
         fn parse_comment_escape() {
             let input = "// TODO: Something\n// More\n// And (\\d+) more";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: None,
@@ -179,7 +201,7 @@ mod tests {
             let input = "// TODO(#42): Something";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: Some(42),
@@ -194,7 +216,7 @@ mod tests {
             let input = "// TODO: Something\n// More\n// TODO: Other\n// comment";
             let expected_one = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: None,
@@ -203,7 +225,7 @@ mod tests {
 
             let expected_two = Todo {
                 line: 3,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Other".to_owned(),
                 issue_id: None,
@@ -241,7 +263,7 @@ mod tests {
             let input = "// TODO: Something\n\nSomething Else";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: Some(42),
@@ -260,7 +282,7 @@ mod tests {
 
             let todo_one = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: Some(123),
@@ -269,7 +291,7 @@ mod tests {
 
             let todo_two = Todo {
                 line: 3,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Other".to_owned(),
                 issue_id: Some(456),
@@ -291,7 +313,7 @@ mod tests {
             let input = "// TODO(#42): Something\n\nSomething Else";
             let expected = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: Some(42),
@@ -310,7 +332,7 @@ mod tests {
 
             let todo_one = Todo {
                 line: 1,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Something".to_owned(),
                 issue_id: Some(123),
@@ -319,7 +341,7 @@ mod tests {
 
             let todo_two = Todo {
                 line: 3,
-                prefix: "// ".to_owned(),
+                prefix: "//".to_owned(),
                 keyword: "TODO".to_owned(),
                 title: "Other".to_owned(),
                 issue_id: Some(456),
