@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use futures::future::try_join_all;
 use thiserror::Error;
 
 use crate::todo::Todo;
@@ -24,10 +25,13 @@ pub trait Api: Sync {
     async fn report_todo(&self, todo: &mut Todo) -> Result<(), ApiError>;
 
     async fn report_todos(&self, todos: &mut [Todo]) -> Result<(), ApiError> {
-        for todo in todos {
-            self.report_todo(todo).await?
-        }
-
+        try_join_all(
+            todos
+                .into_iter()
+                .map(|t| self.report_todo(t))
+                .collect::<Vec<_>>(),
+        )
+        .await?;
         Ok(())
     }
 }
