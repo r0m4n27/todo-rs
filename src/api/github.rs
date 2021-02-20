@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use octocrab::{params, Octocrab};
 
@@ -8,6 +10,7 @@ pub struct Github<'a> {
     user: &'a str,
     repo: &'a str,
     client: Octocrab,
+    labels: HashSet<String>,
 }
 
 #[async_trait]
@@ -51,6 +54,10 @@ impl<'a> Api for Github<'a> {
             builder = builder.body(create_comment_string(&todo))
         }
 
+        if self.labels.contains(&todo.keyword) {
+            builder = builder.labels(vec![todo.keyword.clone()])
+        }
+
         let result = builder.send().await?;
 
         todo.issue_id = Some(result.number as u32);
@@ -60,9 +67,47 @@ impl<'a> Api for Github<'a> {
 }
 
 impl<'a> Github<'a> {
-    pub fn new(user: &'a str, repo: &'a str, token: String) -> Result<Self, ApiError> {
+    pub async fn new(user: &'a str, repo: &'a str, token: String) -> Result<Github<'a>, ApiError> {
         let client = Octocrab::builder().personal_token(token).build()?;
+        let labels = get_labels(user, repo, &client).await?;
 
-        Ok(Github { user, repo, client })
+        Ok(Github {
+            user,
+            repo,
+            client,
+            labels,
+        })
     }
+}
+
+async fn get_labels(
+    user: &str,
+    repo: &str,
+    client: &Octocrab,
+) -> Result<HashSet<String>, ApiError> {
+    let mut page: u32 = 1;
+    let mut out = HashSet::new();
+
+    loop {
+        let labels = client
+            .issues(user, repo)
+            .list_labels_for_repo()
+            .per_page(100)
+            .page(page)
+            .send()
+            .await?
+            .items;
+
+        if !labels.is_empty() {
+            page += 1;
+
+            for label in labels {
+                out.insert(label.name);
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(out)
 }
