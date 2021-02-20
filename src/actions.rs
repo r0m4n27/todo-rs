@@ -43,7 +43,7 @@ pub fn list_todos(conf: &Config, reported: bool, unreported: bool) -> Result<()>
     Ok(())
 }
 
-pub async fn report_todos(conf: &Config<'_>) -> Result<()> {
+pub async fn report_todos(conf: &Config) -> Result<()> {
     let files = find_files(&conf.root, &conf.filter_fn).unwrap();
 
     for path in &files {
@@ -64,7 +64,7 @@ pub async fn report_todos(conf: &Config<'_>) -> Result<()> {
     Ok(())
 }
 
-pub async fn purge_todos(conf: &Config<'_>) -> Result<()> {
+pub async fn purge_todos(conf: &Config) -> Result<()> {
     let files = find_files(&conf.root, &conf.filter_fn).unwrap();
     let closed = conf.api.closed_ids().await?;
 

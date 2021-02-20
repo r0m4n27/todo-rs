@@ -6,15 +6,15 @@ use octocrab::{params, Octocrab};
 use super::{create_comment_string, Api, ApiError};
 use crate::todo::Todo;
 
-pub struct Github<'a> {
-    user: &'a str,
-    repo: &'a str,
+pub struct Github {
+    user: String,
+    repo: String,
     client: Octocrab,
     labels: HashSet<String>,
 }
 
 #[async_trait]
-impl<'a> Api for Github<'a> {
+impl Api for Github {
     async fn closed_ids(&self) -> Result<Vec<u32>, ApiError> {
         let mut page: u32 = 1;
         let mut output = Vec::new();
@@ -22,7 +22,7 @@ impl<'a> Api for Github<'a> {
         loop {
             let issues = self
                 .client
-                .issues(self.user, self.repo)
+                .issues(&self.user, &self.repo)
                 .list()
                 .state(params::State::Closed)
                 .per_page(100)
@@ -46,7 +46,7 @@ impl<'a> Api for Github<'a> {
 
     async fn report_todo(&self, todo: &mut Todo) -> Result<(), ApiError> {
         // Create variable otherwise the IssueHandler is dropped
-        let handler = self.client.issues(self.user, self.repo);
+        let handler = self.client.issues(&self.user, &self.repo);
 
         let mut builder = handler.create(&todo.title);
 
@@ -66,10 +66,10 @@ impl<'a> Api for Github<'a> {
     }
 }
 
-impl<'a> Github<'a> {
-    pub async fn new(user: &'a str, repo: &'a str, token: String) -> Result<Github<'a>, ApiError> {
+impl Github {
+    pub async fn new(user: String, repo: String, token: String) -> Result<Github, ApiError> {
         let client = Octocrab::builder().personal_token(token).build()?;
-        let labels = get_labels(user, repo, &client).await?;
+        let labels = get_labels(&user, &repo, &client).await?;
 
         Ok(Github {
             user,

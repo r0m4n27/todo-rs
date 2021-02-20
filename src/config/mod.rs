@@ -3,8 +3,11 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use self::raw::{IgnoreMode, RawConfig};
-use crate::api::Api;
+use self::raw::{Backend, IgnoreMode, RawConfig};
+use crate::{
+    api::{gitea::Gitea, github::Github, Api},
+    Result,
+};
 
 mod raw;
 
@@ -12,32 +15,61 @@ mod raw;
 pub enum ConfigError {
     #[error("Can't compile Paterns!")]
     Pattern,
+
+    #[error("Config misses {0}!")]
+    MissingValue(String),
 }
 
-pub struct Config<'a> {
+pub struct Config {
     pub keywords: Vec<String>,
     pub root: PathBuf,
     pub filter_fn: Box<dyn Fn(&PathBuf) -> bool>,
-    pub api: &'a dyn Api,
+    pub api: Box<dyn Api>,
 }
 
-impl<'a> Config<'a> {
-    pub fn default(root: PathBuf, dummy_api: &'a impl Api) -> Result<Self, ConfigError> {
+impl Config {
+    pub async fn default(root: PathBuf) -> Result<Config> {
         let raw = RawConfig::merge(
             RawConfig::from_path(&dirs::config_dir().unwrap().join("todo.yml")),
             RawConfig::from_path(&root.join(".todo.yml")),
         );
 
         if let Ok(patterns) = RegexSet::new(raw.patterns.unwrap()) {
+            let api = create_api(raw.backend, raw.user, raw.repo, raw.token, raw.url).await?;
+
             Ok(Config {
                 keywords: raw.keywords.unwrap(),
                 root,
                 filter_fn: create_filter_fn(raw.ignore_mode.unwrap(), patterns),
-                api: dummy_api,
+                api,
             })
         } else {
-            Err(ConfigError::Pattern)
+            Err(ConfigError::Pattern.into())
         }
+    }
+}
+
+async fn create_api(
+    backend: Option<Backend>,
+    user: Option<String>,
+    repo: Option<String>,
+    token: Option<String>,
+    url: Option<String>,
+) -> Result<Box<dyn Api>> {
+    let backend = backend.ok_or(ConfigError::MissingValue("backend".to_owned()))?;
+
+    let user = user.ok_or(ConfigError::MissingValue("user".to_owned()))?;
+    let repo = repo.ok_or(ConfigError::MissingValue("repo".to_owned()))?;
+    let token = token.ok_or(ConfigError::MissingValue("token".to_owned()))?;
+
+    match backend {
+        Backend::Gitea => {
+            let mut url = url.ok_or(ConfigError::MissingValue("url".to_owned()))?;
+            url.push_str("/api/v1");
+
+            Ok(Box::new(Gitea::new(&url, token, &user, &repo).await?))
+        }
+        Backend::Github => Ok(Box::new(Github::new(user, repo, token.clone()).await?)),
     }
 }
 

@@ -21,15 +21,15 @@ pub enum GiteaError {
     Parse(String),
 }
 
-pub struct Gitea<'a> {
+pub struct Gitea {
     issues_url: String,
     labels: HashMap<String, u64>,
-    token: &'a str,
+    token: String,
     client: Client,
 }
 
 #[async_trait]
-impl<'a> Api for Gitea<'a> {
+impl Api for Gitea {
     async fn closed_ids(&self) -> Result<Vec<u32>, ApiError> {
         let mut page = 1;
         let mut output = Vec::new();
@@ -71,19 +71,19 @@ impl<'a> Api for Gitea<'a> {
     }
 }
 
-impl<'a> Gitea<'a> {
+impl Gitea {
     pub async fn new(
         base_url: &str,
-        token: &'a str,
+        token: String,
         user: &str,
         repo: &str,
-    ) -> Result<Gitea<'a>, ApiError> {
+    ) -> Result<Gitea, ApiError> {
         let label_url = format!("{}/repos/{}/{}/labels", base_url, user, repo);
         let client = Client::new();
 
         Ok(Gitea {
             issues_url: format!("{}/repos/{}/{}/issues", base_url, user, repo),
-            labels: get_labels(&client, &label_url, token).await?,
+            labels: get_labels(&client, &label_url, &token).await?,
             token,
             client,
         })
@@ -95,7 +95,7 @@ impl<'a> Gitea<'a> {
     {
         self.client
             .get(&self.issues_url)
-            .headers(create_header(self.token))
+            .headers(create_header(&self.token))
             .query(query)
             .send()
             .await?
@@ -110,7 +110,7 @@ impl<'a> Gitea<'a> {
     {
         self.client
             .post(&self.issues_url)
-            .headers(create_header(self.token))
+            .headers(create_header(&self.token))
             .json(todo)
             .send()
             .await?
