@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use async_trait::async_trait;
 use reqwest::{
     blocking::Client,
     header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION},
@@ -8,9 +9,8 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use thiserror::Error;
 
+use super::{create_comment_string, Api, ApiError};
 use crate::todo::Todo;
-
-use super::{Api, ApiError};
 
 #[derive(Debug, Error)]
 pub enum GiteaError {
@@ -28,8 +28,9 @@ pub struct Gitea<'a> {
     client: Client,
 }
 
+#[async_trait]
 impl<'a> Api for Gitea<'a> {
-    fn closed_ids(&self) -> Result<Vec<u32>, ApiError> {
+    async fn closed_ids(&self) -> Result<Vec<u32>, ApiError> {
         let mut page = 1;
         let mut output = Vec::new();
 
@@ -49,7 +50,7 @@ impl<'a> Api for Gitea<'a> {
         Ok(output)
     }
 
-    fn report_todo(&self, todo: &mut Todo) -> Result<(), ApiError> {
+    async fn report_todo(&self, todo: &mut Todo) -> Result<(), ApiError> {
         let mut json: HashMap<&str, Value> = HashMap::new();
         let comment_str = create_comment_string(todo);
 
@@ -127,27 +128,6 @@ fn get_labels(client: &Client, url: &str, token: &str) -> Result<HashMap<String,
     Ok(parse_labels(response)?)
 }
 
-fn create_comment_string(todo: &Todo) -> String {
-    let mut comment_str = String::new();
-    let mut last_str = "";
-
-    for comment in &todo.comments {
-        if comment == "" {
-            comment_str.push_str("\n")
-        } else {
-            if last_str != "" {
-                comment_str.push_str(" ")
-            }
-
-            comment_str.push_str(comment)
-        }
-
-        last_str = comment;
-    }
-
-    comment_str
-}
-
 fn parse_issue(val: Value) -> Result<u32, GiteaError> {
     val.as_object()
         .and_then(|o| o.get("number"))
@@ -192,34 +172,6 @@ fn parse_numbers(val: Value) -> Result<Vec<u32>, GiteaError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn create_comments_normal() {
-        let todo = Todo {
-            line: 123,
-            prefix: "//".to_owned(),
-            keyword: "TODO".to_owned(),
-            title: "Something".to_owned(),
-            issue_id: None,
-            comments: vec!["More".to_owned(), "And More".to_owned()],
-        };
-
-        assert_eq!("More And More", create_comment_string(&todo))
-    }
-
-    #[test]
-    fn create_comments_newline() {
-        let todo = Todo {
-            line: 123,
-            prefix: "//".to_owned(),
-            keyword: "TODO".to_owned(),
-            title: "Something".to_owned(),
-            issue_id: None,
-            comments: vec!["More".to_owned(), "".to_owned(), "And More".to_owned()],
-        };
-
-        assert_eq!("More\nAnd More", create_comment_string(&todo))
-    }
 
     #[test]
     fn parse_issue_success() {

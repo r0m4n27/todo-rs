@@ -1,10 +1,11 @@
 use std::io;
 
+use async_trait::async_trait;
 use thiserror::Error;
+use tokio;
 
 use actions::{list_todos, purge_todos, report_todos, todo_files};
-use api::Api;
-use api::{gitea::Gitea, ApiError};
+use api::{github::Github, Api, ApiError};
 use clap::ArgMatches;
 use cli::create_cli;
 use config::{Config, ConfigError};
@@ -22,12 +23,13 @@ extern crate clap;
 
 pub struct DummyApi {}
 
+#[async_trait]
 impl Api for DummyApi {
-    fn closed_ids(&self) -> std::result::Result<Vec<u32>, ApiError> {
+    async fn closed_ids(&self) -> std::result::Result<Vec<u32>, ApiError> {
         Ok(vec![1, 2, 3, 4])
     }
 
-    fn report_todo(&self, todo: &mut todo::Todo) -> std::result::Result<(), ApiError> {
+    async fn report_todo(&self, todo: &mut todo::Todo) -> std::result::Result<(), ApiError> {
         todo.issue_id = Some(30);
         println!("Reporting: {}", todo);
         Ok(())
@@ -51,7 +53,8 @@ pub enum TodoError {
 
 type Result<T> = std::result::Result<T, TodoError>;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let dummy = DummyApi {};
 
     let cli_matches = create_cli();
@@ -62,8 +65,8 @@ fn main() -> Result<()> {
     match cli_matches.subcommand() {
         ("list", Some(sub_matches)) => handle_list_todos(&conf, sub_matches)?,
         ("files", _) => todo_files(&conf),
-        ("report", _) => report_todos(&conf)?,
-        ("purge", _) => purge_todos(&conf)?,
+        ("report", _) => report_todos(&conf).await?,
+        ("purge", _) => purge_todos(&conf).await?,
         _ => {}
     }
 
