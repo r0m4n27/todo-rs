@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use reqwest::{
-    blocking::Client,
     header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION},
+    Client,
 };
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -35,7 +35,9 @@ impl<'a> Api for Gitea<'a> {
         let mut output = Vec::new();
 
         loop {
-            let json = self.get_issues(&[("state", "closed"), ("page", &format!("{}", page))])?;
+            let json = self
+                .get_issues(&[("state", "closed"), ("page", &format!("{}", page))])
+                .await?;
             let mut numbers = parse_numbers(json)?;
 
             if !numbers.is_empty() {
@@ -61,7 +63,7 @@ impl<'a> Api for Gitea<'a> {
             json.insert("labels", json!(&[id]));
         }
 
-        let response = self.post_todo(&json)?;
+        let response = self.post_todo(&json).await?;
 
         todo.issue_id = Some(parse_issue(response)?);
 
@@ -70,19 +72,24 @@ impl<'a> Api for Gitea<'a> {
 }
 
 impl<'a> Gitea<'a> {
-    pub fn new(base_url: &str, token: &'a str, user: &str, repo: &str) -> Result<Self, ApiError> {
+    pub async fn new(
+        base_url: &str,
+        token: &'a str,
+        user: &str,
+        repo: &str,
+    ) -> Result<Gitea<'a>, ApiError> {
         let label_url = format!("{}/repos/{}/{}/labels", base_url, user, repo);
         let client = Client::new();
 
         Ok(Gitea {
             issues_url: format!("{}/repos/{}/{}/issues", base_url, user, repo),
-            labels: get_labels(&client, &label_url, token)?,
+            labels: get_labels(&client, &label_url, token).await?,
             token,
             client,
         })
     }
 
-    fn get_issues<T>(&self, query: &T) -> Result<Value, GiteaError>
+    async fn get_issues<T>(&self, query: &T) -> Result<Value, GiteaError>
     where
         T: Serialize + ?Sized,
     {
@@ -90,12 +97,14 @@ impl<'a> Gitea<'a> {
             .get(&self.issues_url)
             .headers(create_header(self.token))
             .query(query)
-            .send()?
+            .send()
+            .await?
             .json::<Value>()
+            .await
             .map_err(|err| GiteaError::Request(err))
     }
 
-    fn post_todo<T>(&self, todo: &T) -> Result<Value, GiteaError>
+    async fn post_todo<T>(&self, todo: &T) -> Result<Value, GiteaError>
     where
         T: Serialize + ?Sized,
     {
@@ -103,8 +112,10 @@ impl<'a> Gitea<'a> {
             .post(&self.issues_url)
             .headers(create_header(self.token))
             .json(todo)
-            .send()?
+            .send()
+            .await?
             .json::<Value>()
+            .await
             .map_err(|err| GiteaError::Request(err))
     }
 }
@@ -118,12 +129,16 @@ fn create_header(token: &str) -> HeaderMap {
     headers
 }
 
-fn get_labels(client: &Client, url: &str, token: &str) -> Result<HashMap<String, u64>, GiteaError> {
+async fn get_labels(
+    client: &Client,
+    url: &str,
+    token: &str,
+) -> Result<HashMap<String, u64>, GiteaError> {
     let mut page = 1;
     let mut out = Vec::new();
 
     loop {
-        let mut json = get_labels_raw(client, url, token, page)?;
+        let mut json = get_labels_raw(client, url, token, page).await?;
 
         if let Some(arr) = json.as_array_mut() {
             if arr.is_empty() {
@@ -140,13 +155,20 @@ fn get_labels(client: &Client, url: &str, token: &str) -> Result<HashMap<String,
     Ok(parse_labels(out)?)
 }
 
-fn get_labels_raw(client: &Client, url: &str, token: &str, page: i32) -> Result<Value, GiteaError> {
+async fn get_labels_raw(
+    client: &Client,
+    url: &str,
+    token: &str,
+    page: i32,
+) -> Result<Value, GiteaError> {
     client
         .get(url)
         .headers(create_header(token))
         .query(&[("page", page)])
-        .send()?
+        .send()
+        .await?
         .json::<Value>()
+        .await
         .map_err(|e| GiteaError::Request(e))
 }
 
