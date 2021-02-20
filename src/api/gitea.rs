@@ -119,13 +119,35 @@ fn create_header(token: &str) -> HeaderMap {
 }
 
 fn get_labels(client: &Client, url: &str, token: &str) -> Result<HashMap<String, u64>, GiteaError> {
-    let response = client
+    let mut page = 1;
+    let mut out = Vec::new();
+
+    loop {
+        let mut json = get_labels_raw(client, url, token, page)?;
+
+        if let Some(arr) = json.as_array_mut() {
+            if arr.is_empty() {
+                break;
+            } else {
+                out.append(arr);
+                page += 1
+            }
+        } else {
+            break;
+        }
+    }
+
+    Ok(parse_labels(out)?)
+}
+
+fn get_labels_raw(client: &Client, url: &str, token: &str, page: i32) -> Result<Value, GiteaError> {
+    client
         .get(url)
         .headers(create_header(token))
+        .query(&[("page", page)])
         .send()?
-        .json::<Value>()?;
-
-    Ok(parse_labels(response)?)
+        .json::<Value>()
+        .map_err(|e| GiteaError::Request(e))
 }
 
 fn parse_issue(val: Value) -> Result<u32, GiteaError> {
@@ -138,17 +160,14 @@ fn parse_issue(val: Value) -> Result<u32, GiteaError> {
         ))
 }
 
-fn parse_labels(val: Value) -> Result<HashMap<String, u64>, GiteaError> {
-    val.as_array()
-        .and_then(|a| {
-            a.into_iter()
-                .map(|v| {
-                    v.as_object()
-                        .and_then(|o| Some((o.get("name")?, o.get("id")?)))
-                        .and_then(|t| Some((t.0.as_str()?.to_owned(), t.1.as_u64()?)))
-                })
-                .collect::<Option<_>>()
+fn parse_labels(val: Vec<Value>) -> Result<HashMap<String, u64>, GiteaError> {
+    val.into_iter()
+        .map(|v| {
+            v.as_object()
+                .and_then(|o| Some((o.get("name")?, o.get("id")?)))
+                .and_then(|t| Some((t.0.as_str()?.to_owned(), t.1.as_u64()?)))
         })
+        .collect::<Option<_>>()
         .ok_or(GiteaError::Parse("Can't parse labels!".to_owned()))
 }
 
@@ -201,16 +220,16 @@ mod tests {
 
     #[test]
     fn parse_labels_success() {
-        let val = json!([
-            {
+        let val = vec![
+            json!({
                 "name": "123",
                 "id": 123
-            },
-            {
+            }),
+            json!({
                 "name": "456",
                 "id": 456
-            }
-        ]);
+            }),
+        ];
 
         if let Ok(map) = parse_labels(val) {
             assert_eq!(&123, map.get("123").unwrap());
@@ -222,15 +241,15 @@ mod tests {
 
     #[test]
     fn parse_labels_fail() {
-        let val = json!([
-            {
+        let val = vec![
+            json!({
                 "name": "123",
-            },
-            {
+            }),
+            json!({
                 "name": "456",
                 "id": 456
-            }
-        ]);
+            }),
+        ];
 
         if let Err(GiteaError::Parse(issue)) = parse_labels(val) {
             assert_eq!("Can't parse labels!".to_owned(), issue)
